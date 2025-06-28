@@ -85,7 +85,7 @@ export const usePromptStore = create((set, get) => ({
   deletePrompt: async (promptId) => {
     try {
       console.log('🗑️ Deleting prompt:', promptId);
-      
+
       const { error } = await supabase
         .from('prompts_ai_studio')
         .delete()
@@ -155,24 +155,33 @@ export const usePromptStore = create((set, get) => ({
   enhancePrompt: async (content) => {
     try {
       set({ enhancing: true });
-      console.log('🤖 Enhancing prompt with OpenAI...');
+      console.log('🤖 Starting prompt enhancement...');
+      console.log('Content to enhance:', content.substring(0, 100) + '...');
 
       const result = await openaiService.enhancePrompt(content);
       
       set({ enhancing: false });
+      console.log('✅ Enhancement completed successfully');
       toast.success('Prompt enhanced successfully!');
       
       return result;
     } catch (error) {
       set({ enhancing: false });
+      console.error('❌ Enhancement failed:', error);
       
+      // Provide specific error messages
       if (error.message.includes('API key not configured')) {
-        toast.error('AI enhancement requires OpenAI API key. Please add VITE_OPENAI_API_KEY to your environment variables.');
+        toast.error('OpenAI API key is missing. Please add VITE_OPENAI_API_KEY to your environment variables.');
+      } else if (error.message.includes('Invalid OpenAI API key')) {
+        toast.error('Invalid OpenAI API key. Please check your VITE_OPENAI_API_KEY.');
+      } else if (error.message.includes('rate limit')) {
+        toast.error('OpenAI API rate limit exceeded. Please try again in a few minutes.');
+      } else if (error.message.includes('Network error')) {
+        toast.error('Network error. Please check your internet connection and try again.');
       } else {
         toast.error('Failed to enhance prompt: ' + error.message);
       }
       
-      console.error('Enhancement error:', error);
       throw error;
     }
   },

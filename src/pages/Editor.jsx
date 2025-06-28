@@ -9,7 +9,7 @@ import { usePromptStore } from '../stores/promptStore';
 import Button from '../components/UI/Button';
 import toast from 'react-hot-toast';
 
-const { FiSave, FiZap, FiEye, FiShare2, FiTag, FiType, FiLightbulb, FiCheckCircle, FiAlertCircle } = FiIcons;
+const { FiSave, FiZap, FiEye, FiShare2, FiTag, FiType, FiLightbulb, FiCheckCircle, FiAlertCircle, FiX, FiServer } = FiIcons;
 
 const Editor = () => {
   const { id } = useParams();
@@ -30,6 +30,10 @@ const Editor = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [enhancementResult, setEnhancementResult] = useState(null);
   const [showEnhancementModal, setShowEnhancementModal] = useState(false);
+
+  // Check if we're in development or production
+  const isDevelopment = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const hasEnhancementService = !isDevelopment; // Only available in production with Netlify functions
 
   useEffect(() => {
     if (id && currentPrompt && currentPrompt.id === parseInt(id)) {
@@ -74,14 +78,23 @@ const Editor = () => {
       return;
     }
 
+    if (!hasEnhancementService) {
+      toast.error('AI enhancement is only available in the deployed version. Deploy to Netlify to use this feature.');
+      return;
+    }
+
+    console.log('🚀 Starting AI enhancement process...');
+    
     try {
       const result = await enhancePrompt(formData.content);
       if (result) {
+        console.log('✅ Enhancement successful:', result);
         setEnhancementResult(result);
         setShowEnhancementModal(true);
       }
     } catch (error) {
-      // Error is already handled in the store
+      console.error('❌ Enhancement failed:', error);
+      // Error is already handled in the store with toast
     }
   };
 
@@ -201,7 +214,7 @@ const Editor = () => {
                 size="sm"
                 onClick={handleEnhance}
                 loading={enhancing}
-                disabled={!formData.content.trim()}
+                disabled={!formData.content.trim() || !hasEnhancementService}
               >
                 <SafeIcon icon={FiZap} className="mr-2" />
                 {enhancing ? 'Enhancing...' : 'Enhance with AI'}
@@ -233,17 +246,32 @@ const Editor = () => {
             <div className="space-y-3 text-sm">
               <div className="flex items-center space-x-2">
                 <SafeIcon 
-                  icon={import.meta.env.VITE_OPENAI_API_KEY ? FiCheckCircle : FiAlertCircle} 
-                  className={import.meta.env.VITE_OPENAI_API_KEY ? 'text-green-400' : 'text-yellow-400'} 
+                  icon={hasEnhancementService ? FiCheckCircle : FiAlertCircle} 
+                  className={hasEnhancementService ? 'text-green-400' : 'text-yellow-400'} 
                 />
                 <span className="text-gray-300">
-                  {import.meta.env.VITE_OPENAI_API_KEY ? 'OpenAI API Connected' : 'OpenAI API Key Missing'}
+                  {hasEnhancementService ? 'Enhancement Service Ready' : 'Development Mode'}
                 </span>
               </div>
-              {!import.meta.env.VITE_OPENAI_API_KEY && (
-                <p className="text-yellow-400 text-xs">
-                  Add VITE_OPENAI_API_KEY to your environment variables to enable AI enhancement.
-                </p>
+              {!hasEnhancementService && (
+                <div className="p-3 bg-yellow-600/20 border border-yellow-500/30 rounded-lg">
+                  <p className="text-yellow-400 text-xs">
+                    AI enhancement is available in the deployed version. Deploy to Netlify to use this feature.
+                  </p>
+                  <div className="flex items-center space-x-1 mt-2">
+                    <SafeIcon icon={FiServer} className="text-yellow-300" />
+                    <p className="text-yellow-300 text-xs">
+                      Requires Netlify Functions backend
+                    </p>
+                  </div>
+                </div>
+              )}
+              {hasEnhancementService && (
+                <div className="p-3 bg-green-600/20 border border-green-500/30 rounded-lg">
+                  <p className="text-green-300 text-xs">
+                    AI enhancement is ready! Write your prompt and click "Enhance with AI" to improve it.
+                  </p>
+                </div>
               )}
             </div>
           </div>
@@ -360,7 +388,7 @@ const Editor = () => {
                 onClick={() => setShowEnhancementModal(false)}
                 className="text-gray-400 hover:text-white"
               >
-                <SafeIcon icon={FiType} />
+                <SafeIcon icon={FiX} />
               </button>
             </div>
 
@@ -409,8 +437,8 @@ const Editor = () => {
                   <SafeIcon icon={FiCheckCircle} className="mr-2" />
                   Accept Enhancement
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setShowEnhancementModal(false)}
                 >
                   Keep Original
