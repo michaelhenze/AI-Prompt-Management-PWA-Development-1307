@@ -9,13 +9,13 @@ import { usePromptStore } from '../stores/promptStore';
 import Button from '../components/UI/Button';
 import toast from 'react-hot-toast';
 
-const { FiSave, FiZap, FiEye, FiShare2, FiTag, FiType } = FiIcons;
+const { FiSave, FiZap, FiEye, FiShare2, FiTag, FiType, FiLightbulb, FiCheckCircle, FiAlertCircle } = FiIcons;
 
 const Editor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { createPrompt, updatePrompt, enhancePrompt, currentPrompt, setCurrentPrompt } = usePromptStore();
+  const { createPrompt, updatePrompt, enhancePrompt, enhancing, currentPrompt, setCurrentPrompt } = usePromptStore();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -23,27 +23,32 @@ const Editor = () => {
     content: '',
     tags: [],
     category: '',
-    isPublic: false
+    is_public: false
   });
+
   const [tagInput, setTagInput] = useState('');
-  const [isEnhancing, setIsEnhancing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [enhancementResult, setEnhancementResult] = useState(null);
+  const [showEnhancementModal, setShowEnhancementModal] = useState(false);
 
   useEffect(() => {
-    if (id && currentPrompt && currentPrompt.id === id) {
+    if (id && currentPrompt && currentPrompt.id === parseInt(id)) {
       setFormData({
         title: currentPrompt.title || '',
         description: currentPrompt.description || '',
         content: currentPrompt.content || '',
         tags: currentPrompt.tags || [],
         category: currentPrompt.category || '',
-        isPublic: currentPrompt.isPublic || false
+        is_public: currentPrompt.is_public || false
       });
     }
   }, [id, currentPrompt]);
 
   const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   const handleAddTag = () => {
@@ -69,20 +74,26 @@ const Editor = () => {
       return;
     }
 
-    setIsEnhancing(true);
     try {
       const result = await enhancePrompt(formData.content);
       if (result) {
-        setFormData(prev => ({
-          ...prev,
-          content: result.enhanced
-        }));
-        toast.success('Prompt enhanced successfully!');
+        setEnhancementResult(result);
+        setShowEnhancementModal(true);
       }
     } catch (error) {
-      toast.error('Failed to enhance prompt');
-    } finally {
-      setIsEnhancing(false);
+      // Error is already handled in the store
+    }
+  };
+
+  const acceptEnhancement = () => {
+    if (enhancementResult) {
+      setFormData(prev => ({
+        ...prev,
+        content: enhancementResult.enhanced
+      }));
+      setShowEnhancementModal(false);
+      setEnhancementResult(null);
+      toast.success('Enhancement applied!');
     }
   };
 
@@ -95,9 +106,9 @@ const Editor = () => {
     setIsSaving(true);
     try {
       if (id && currentPrompt) {
-        await updatePrompt(currentPrompt.firestoreId, formData);
+        await updatePrompt(currentPrompt.id, formData);
       } else {
-        const newPrompt = await createPrompt(formData, user.uid);
+        const newPrompt = await createPrompt(formData, user.id);
         if (newPrompt) {
           navigate(`/editor/${newPrompt.id}`);
         }
@@ -125,7 +136,6 @@ const Editor = () => {
             {id ? 'Update your existing prompt' : 'Create a new AI prompt with intelligent assistance'}
           </p>
         </div>
-        
         <div className="flex space-x-3">
           <Button
             variant="outline"
@@ -190,11 +200,11 @@ const Editor = () => {
                 variant="outline"
                 size="sm"
                 onClick={handleEnhance}
-                loading={isEnhancing}
+                loading={enhancing}
                 disabled={!formData.content.trim()}
               >
                 <SafeIcon icon={FiZap} className="mr-2" />
-                Enhance with AI
+                {enhancing ? 'Enhancing...' : 'Enhance with AI'}
               </Button>
             </div>
             <TextareaAutosize
@@ -214,13 +224,36 @@ const Editor = () => {
           animate={{ opacity: 1, x: 0 }}
           className="space-y-6"
         >
+          {/* AI Enhancement Status */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h3 className="flex items-center space-x-2 text-sm font-medium text-gray-300 mb-4">
+              <SafeIcon icon={FiLightbulb} />
+              <span>AI Enhancement</span>
+            </h3>
+            <div className="space-y-3 text-sm">
+              <div className="flex items-center space-x-2">
+                <SafeIcon 
+                  icon={import.meta.env.VITE_OPENAI_API_KEY ? FiCheckCircle : FiAlertCircle} 
+                  className={import.meta.env.VITE_OPENAI_API_KEY ? 'text-green-400' : 'text-yellow-400'} 
+                />
+                <span className="text-gray-300">
+                  {import.meta.env.VITE_OPENAI_API_KEY ? 'OpenAI API Connected' : 'OpenAI API Key Missing'}
+                </span>
+              </div>
+              {!import.meta.env.VITE_OPENAI_API_KEY && (
+                <p className="text-yellow-400 text-xs">
+                  Add VITE_OPENAI_API_KEY to your environment variables to enable AI enhancement.
+                </p>
+              )}
+            </div>
+          </div>
+
           {/* Tags */}
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
             <label className="flex items-center space-x-2 text-sm font-medium text-gray-300 mb-3">
               <SafeIcon icon={FiTag} />
               <span>Tags</span>
             </label>
-            
             <div className="flex space-x-2 mb-3">
               <input
                 type="text"
@@ -234,7 +267,6 @@ const Editor = () => {
                 Add
               </Button>
             </div>
-
             <div className="flex flex-wrap gap-2">
               {formData.tags.map((tag, index) => (
                 <span
@@ -256,7 +288,6 @@ const Editor = () => {
           {/* Settings */}
           <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
             <h3 className="text-sm font-medium text-gray-300 mb-4">Settings</h3>
-            
             <div className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-400 mb-2">Category</label>
@@ -274,13 +305,12 @@ const Editor = () => {
                   <option value="other">Other</option>
                 </select>
               </div>
-
               <div className="flex items-center">
                 <input
                   type="checkbox"
                   id="isPublic"
-                  checked={formData.isPublic}
-                  onChange={(e) => handleInputChange('isPublic', e.target.checked)}
+                  checked={formData.is_public}
+                  onChange={(e) => handleInputChange('is_public', e.target.checked)}
                   className="w-4 h-4 text-primary-600 bg-slate-700 border-slate-600 rounded focus:ring-primary-500"
                 />
                 <label htmlFor="isPublic" className="ml-2 text-sm text-gray-300">
@@ -296,7 +326,6 @@ const Editor = () => {
               <SafeIcon icon={FiEye} />
               <span>Preview</span>
             </h3>
-            
             <div className="space-y-3 text-sm">
               <div>
                 <span className="text-gray-400">Title:</span>
@@ -316,6 +345,81 @@ const Editor = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Enhancement Modal */}
+      {showEnhancementModal && enhancementResult && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-slate-800 rounded-lg p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto border border-slate-700"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold">AI Enhancement Results</h2>
+              <button
+                onClick={() => setShowEnhancementModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <SafeIcon icon={FiType} />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Enhanced Content */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Enhanced Prompt:</h3>
+                <div className="bg-slate-700 rounded-lg p-4 border border-slate-600">
+                  <p className="text-white whitespace-pre-wrap">{enhancementResult.enhanced}</p>
+                </div>
+              </div>
+
+              {/* Improvements */}
+              {enhancementResult.improvements && enhancementResult.improvements.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Improvements Made:</h3>
+                  <ul className="space-y-2">
+                    {enhancementResult.improvements.map((improvement, index) => (
+                      <li key={index} className="flex items-start space-x-2">
+                        <SafeIcon icon={FiCheckCircle} className="text-green-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300">{improvement}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Suggestions */}
+              {enhancementResult.suggestions && enhancementResult.suggestions.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Additional Suggestions:</h3>
+                  <ul className="space-y-2">
+                    {enhancementResult.suggestions.map((suggestion, index) => (
+                      <li key={index} className="flex items-start space-x-2">
+                        <SafeIcon icon={FiLightbulb} className="text-yellow-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-gray-300">{suggestion}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex space-x-3 pt-4 border-t border-slate-600">
+                <Button onClick={acceptEnhancement}>
+                  <SafeIcon icon={FiCheckCircle} className="mr-2" />
+                  Accept Enhancement
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowEnhancementModal(false)}
+                >
+                  Keep Original
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

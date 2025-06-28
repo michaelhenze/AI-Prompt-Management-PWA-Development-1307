@@ -11,7 +11,7 @@ const PromptCard = ({ prompt, onDelete, showActions = false }) => {
   const handleDelete = (e) => {
     e.preventDefault();
     if (window.confirm('Are you sure you want to delete this prompt?')) {
-      onDelete(prompt.firestoreId);
+      onDelete(prompt.id);
     }
   };
 
@@ -72,7 +72,7 @@ const PromptCard = ({ prompt, onDelete, showActions = false }) => {
           </div>
         </div>
         <span>
-          {formatDistanceToNow(new Date(prompt.updatedAt?.seconds * 1000 || prompt.updatedAt), { addSuffix: true })}
+          {formatDistanceToNow(new Date(prompt.updated_at || prompt.created_at), { addSuffix: true })}
         </span>
       </div>
     </motion.div>

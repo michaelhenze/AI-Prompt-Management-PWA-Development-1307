@@ -1,173 +1,190 @@
 import { create } from 'zustand';
-import { 
-  collection, 
-  addDoc, 
-  updateDoc, 
-  deleteDoc, 
-  doc, 
-  getDocs, 
-  query, 
-  where, 
-  orderBy,
-  getDoc
-} from 'firebase/firestore';
-import { db } from './authStore';
-import { v4 as uuidv4 } from 'uuid';
+import supabase from '../lib/supabase';
+import openaiService from '../lib/openai';
 import toast from 'react-hot-toast';
 
 export const usePromptStore = create((set, get) => ({
   prompts: [],
   currentPrompt: null,
   loading: false,
-  
+  enhancing: false,
+
   createPrompt: async (promptData, userId) => {
     try {
       set({ loading: true });
-      
+      console.log('🆕 Creating new prompt...');
+
       const newPrompt = {
         ...promptData,
-        id: uuidv4(),
-        userId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        user_id: userId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
         views: 0,
         likes: 0,
         shares: 0,
-        isPublic: false,
-        tags: promptData.tags || [],
-        versions: [{ ...promptData, version: 1, createdAt: new Date() }]
+        tags: promptData.tags || []
       };
-      
-      const docRef = await addDoc(collection(db, 'prompts'), newPrompt);
-      newPrompt.firestoreId = docRef.id;
-      
+
+      const { data, error } = await supabase
+        .from('prompts_ai_studio')
+        .insert(newPrompt)
+        .select()
+        .single();
+
+      if (error) throw error;
+
       set(state => ({
-        prompts: [...state.prompts, newPrompt],
-        currentPrompt: newPrompt,
+        prompts: [...state.prompts, data],
+        currentPrompt: data,
         loading: false
       }));
-      
+
       toast.success('Prompt created successfully!');
-      return newPrompt;
+      return data;
     } catch (error) {
       set({ loading: false });
-      toast.error('Failed to create prompt');
+      toast.error('Failed to create prompt: ' + error.message);
       console.error(error);
+      throw error;
     }
   },
-  
+
   updatePrompt: async (promptId, updates) => {
     try {
       set({ loading: true });
-      
-      const promptRef = doc(db, 'prompts', promptId);
-      await updateDoc(promptRef, {
-        ...updates,
-        updatedAt: new Date()
-      });
-      
+      console.log('✏️ Updating prompt:', promptId);
+
+      const { data, error } = await supabase
+        .from('prompts_ai_studio')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', promptId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
       set(state => ({
-        prompts: state.prompts.map(p => 
-          p.firestoreId === promptId ? { ...p, ...updates } : p
-        ),
-        currentPrompt: state.currentPrompt?.firestoreId === promptId 
-          ? { ...state.currentPrompt, ...updates } 
-          : state.currentPrompt,
+        prompts: state.prompts.map(p => p.id === promptId ? data : p),
+        currentPrompt: state.currentPrompt?.id === promptId ? data : state.currentPrompt,
         loading: false
       }));
-      
+
       toast.success('Prompt updated successfully!');
+      return data;
     } catch (error) {
       set({ loading: false });
-      toast.error('Failed to update prompt');
+      toast.error('Failed to update prompt: ' + error.message);
       console.error(error);
+      throw error;
     }
   },
-  
+
   deletePrompt: async (promptId) => {
     try {
-      await deleteDoc(doc(db, 'prompts', promptId));
+      console.log('🗑️ Deleting prompt:', promptId);
       
+      const { error } = await supabase
+        .from('prompts_ai_studio')
+        .delete()
+        .eq('id', promptId);
+
+      if (error) throw error;
+
       set(state => ({
-        prompts: state.prompts.filter(p => p.firestoreId !== promptId),
-        currentPrompt: state.currentPrompt?.firestoreId === promptId ? null : state.currentPrompt
+        prompts: state.prompts.filter(p => p.id !== promptId),
+        currentPrompt: state.currentPrompt?.id === promptId ? null : state.currentPrompt
       }));
-      
+
       toast.success('Prompt deleted successfully!');
     } catch (error) {
-      toast.error('Failed to delete prompt');
+      toast.error('Failed to delete prompt: ' + error.message);
       console.error(error);
+      throw error;
     }
   },
-  
+
   fetchUserPrompts: async (userId) => {
     try {
       set({ loading: true });
-      
-      const q = query(
-        collection(db, 'prompts'),
-        where('userId', '==', userId),
-        orderBy('updatedAt', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const prompts = querySnapshot.docs.map(doc => ({
-        ...doc.data(),
-        firestoreId: doc.id
-      }));
-      
-      set({ prompts, loading: false });
+      console.log('📋 Fetching user prompts for:', userId);
+
+      const { data, error } = await supabase
+        .from('prompts_ai_studio')
+        .select('*')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+
+      set({ prompts: data || [], loading: false });
+      return data;
     } catch (error) {
       set({ loading: false });
-      toast.error('Failed to fetch prompts');
-      console.error(error);
-    }
-  },
-  
-  fetchPublicPrompts: async () => {
-    try {
-      set({ loading: true });
-      
-      const q = query(
-        collection(db, 'prompts'),
-        where('isPublic', '==', true),
-        orderBy('views', 'desc')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      const prompts = querySnapshot.docs.map(doc => ({
-        ...doc.data(),
-        firestoreId: doc.id
-      }));
-      
-      set({ prompts, loading: false });
-      return prompts;
-    } catch (error) {
-      set({ loading: false });
-      toast.error('Failed to fetch public prompts');
-      console.error(error);
+      console.error('Failed to fetch prompts:', error);
       return [];
     }
   },
-  
+
+  fetchPublicPrompts: async () => {
+    try {
+      set({ loading: true });
+      console.log('🌐 Fetching public prompts...');
+
+      const { data, error } = await supabase
+        .from('prompts_ai_studio')
+        .select('*')
+        .eq('is_public', true)
+        .order('views', { ascending: false });
+
+      if (error) throw error;
+
+      set({ prompts: data || [], loading: false });
+      return data;
+    } catch (error) {
+      set({ loading: false });
+      console.error('Failed to fetch public prompts:', error);
+      return [];
+    }
+  },
+
   setCurrentPrompt: (prompt) => set({ currentPrompt: prompt }),
-  
+
   enhancePrompt: async (content) => {
     try {
-      // Simulate AI enhancement - replace with actual OpenAI API call
-      const enhancedContent = `Enhanced: ${content}\n\nThis prompt has been optimized for better clarity and effectiveness.`;
+      set({ enhancing: true });
+      console.log('🤖 Enhancing prompt with OpenAI...');
+
+      const result = await openaiService.enhancePrompt(content);
       
-      return {
-        enhanced: enhancedContent,
-        suggestions: [
-          'Consider adding more specific context',
-          'Include examples for better results',
-          'Specify the desired output format'
-        ]
-      };
+      set({ enhancing: false });
+      toast.success('Prompt enhanced successfully!');
+      
+      return result;
     } catch (error) {
-      toast.error('Failed to enhance prompt');
+      set({ enhancing: false });
+      
+      if (error.message.includes('API key not configured')) {
+        toast.error('AI enhancement requires OpenAI API key. Please add VITE_OPENAI_API_KEY to your environment variables.');
+      } else {
+        toast.error('Failed to enhance prompt: ' + error.message);
+      }
+      
+      console.error('Enhancement error:', error);
+      throw error;
+    }
+  },
+
+  generatePromptIdeas: async (topic, category) => {
+    try {
+      console.log('💡 Generating prompt ideas for:', topic);
+      return await openaiService.generatePromptIdeas(topic, category);
+    } catch (error) {
+      toast.error('Failed to generate ideas: ' + error.message);
       console.error(error);
+      throw error;
     }
   }
 }));

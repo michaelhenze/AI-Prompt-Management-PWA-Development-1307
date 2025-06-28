@@ -16,13 +16,13 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user) {
-      fetchUserPrompts(user.uid);
+      fetchUserPrompts(user.id);
     }
   }, [user, fetchUserPrompts]);
 
   const stats = [
     { label: 'Total Prompts', value: prompts.length, icon: FiEdit3 },
-    { label: 'Public Prompts', value: prompts.filter(p => p.isPublic).length, icon: FiBookOpen },
+    { label: 'Public Prompts', value: prompts.filter(p => p.is_public).length, icon: FiBookOpen },
     { label: 'Total Views', value: prompts.reduce((sum, p) => sum + (p.views || 0), 0), icon: FiTrendingUp }
   ];
 
