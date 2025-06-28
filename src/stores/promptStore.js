@@ -31,7 +31,10 @@ export const usePromptStore = create((set, get) => ({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw new Error(`Failed to create prompt: ${error.message}`);
+      }
 
       set(state => ({
         prompts: [...state.prompts, data],
@@ -43,8 +46,8 @@ export const usePromptStore = create((set, get) => ({
       return data;
     } catch (error) {
       set({ loading: false });
-      toast.error('Failed to create prompt: ' + error.message);
-      console.error(error);
+      console.error('Create prompt error:', error);
+      toast.error(error.message || 'Failed to create prompt');
       throw error;
     }
   },
@@ -64,7 +67,10 @@ export const usePromptStore = create((set, get) => ({
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw new Error(`Failed to update prompt: ${error.message}`);
+      }
 
       set(state => ({
         prompts: state.prompts.map(p => p.id === promptId ? data : p),
@@ -76,8 +82,8 @@ export const usePromptStore = create((set, get) => ({
       return data;
     } catch (error) {
       set({ loading: false });
-      toast.error('Failed to update prompt: ' + error.message);
-      console.error(error);
+      console.error('Update prompt error:', error);
+      toast.error(error.message || 'Failed to update prompt');
       throw error;
     }
   },
@@ -91,7 +97,10 @@ export const usePromptStore = create((set, get) => ({
         .delete()
         .eq('id', promptId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw new Error(`Failed to delete prompt: ${error.message}`);
+      }
 
       set(state => ({
         prompts: state.prompts.filter(p => p.id !== promptId),
@@ -100,8 +109,8 @@ export const usePromptStore = create((set, get) => ({
 
       toast.success('Prompt deleted successfully!');
     } catch (error) {
-      toast.error('Failed to delete prompt: ' + error.message);
-      console.error(error);
+      console.error('Delete prompt error:', error);
+      toast.error(error.message || 'Failed to delete prompt');
       throw error;
     }
   },
@@ -117,13 +126,19 @@ export const usePromptStore = create((set, get) => ({
         .eq('user_id', userId)
         .order('updated_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        // Don't throw error, just log it and return empty array
+        console.log('Failed to fetch user prompts:', error.message);
+        set({ prompts: [], loading: false });
+        return [];
+      }
 
       set({ prompts: data || [], loading: false });
-      return data;
+      return data || [];
     } catch (error) {
       set({ loading: false });
-      console.error('Failed to fetch prompts:', error);
+      console.error('Fetch user prompts error:', error);
       return [];
     }
   },
@@ -139,13 +154,19 @@ export const usePromptStore = create((set, get) => ({
         .eq('is_public', true)
         .order('views', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        // Don't throw error, just log it and return empty array
+        console.log('Failed to fetch public prompts:', error.message);
+        set({ prompts: [], loading: false });
+        return [];
+      }
 
       set({ prompts: data || [], loading: false });
-      return data;
+      return data || [];
     } catch (error) {
       set({ loading: false });
-      console.error('Failed to fetch public prompts:', error);
+      console.error('Fetch public prompts error:', error);
       return [];
     }
   },

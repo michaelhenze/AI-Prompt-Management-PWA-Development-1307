@@ -15,10 +15,11 @@ const Dashboard = () => {
   const { prompts, loading, fetchUserPrompts, deletePrompt } = usePromptStore();
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
+      console.log('👤 Fetching prompts for user:', user.id);
       fetchUserPrompts(user.id);
     }
-  }, [user, fetchUserPrompts]);
+  }, [user?.id, fetchUserPrompts]);
 
   const stats = [
     { label: 'Total Prompts', value: prompts.length, icon: FiEdit3 },

@@ -10,7 +10,7 @@ export const useAuthStore = create((set, get) => ({
   initialize: async () => {
     try {
       console.log('🚀 Initializing authentication with Supabase...');
-      
+
       // Get initial session from Supabase
       const { data: { session }, error } = await supabase.auth.getSession();
       
@@ -44,15 +44,15 @@ export const useAuthStore = create((set, get) => ({
         if (event === 'SIGNED_IN' && session?.user) {
           // Try to create user profile if it doesn't exist
           try {
-            const { data: profile } = await supabase
+            const { data: profile, error: profileError } = await supabase
               .from('profiles_ai_prompt')
               .select('*')
               .eq('id', session.user.id)
               .single();
 
-            if (!profile) {
+            if (!profile && !profileError) {
               console.log('🆕 Creating user profile...');
-              await supabase
+              const { error: insertError } = await supabase
                 .from('profiles_ai_prompt')
                 .insert({
                   id: session.user.id,
@@ -61,9 +61,13 @@ export const useAuthStore = create((set, get) => ({
                   avatar_url: session.user.user_metadata?.avatar_url,
                   subscription: 'free'
                 });
+
+              if (insertError) {
+                console.log('Profile creation error (non-critical):', insertError.message);
+              }
             }
           } catch (error) {
-            console.log('Profile creation skipped:', error.message);
+            console.log('Profile handling skipped:', error.message);
           }
 
           set({
@@ -80,6 +84,7 @@ export const useAuthStore = create((set, get) => ({
           set({ user: null, loading: false });
         }
       });
+
     } catch (error) {
       console.error('Auth initialization error:', error);
       set({ user: null, loading: false });
@@ -129,12 +134,14 @@ export const useAuthStore = create((set, get) => ({
   signInWithEmail: async (email, password) => {
     try {
       console.log('📧 Attempting email sign-in for:', email);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
       
       if (error) throw error;
+      
       toast.success('Successfully signed in!');
       return data;
     } catch (error) {
@@ -167,6 +174,7 @@ export const useAuthStore = create((set, get) => ({
       } else {
         toast.success('Account created successfully!');
       }
+      
       return data;
     } catch (error) {
       toast.error(error.message || 'Failed to create account');
@@ -178,6 +186,7 @@ export const useAuthStore = create((set, get) => ({
   signOut: async () => {
     try {
       console.log('👋 Signing out...');
+      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       
