@@ -84,7 +84,6 @@ const Editor = () => {
     }
 
     console.log('🚀 Starting AI enhancement process...');
-    
     try {
       const result = await enhancePrompt(formData.content);
       if (result) {
@@ -116,18 +115,28 @@ const Editor = () => {
       return;
     }
 
+    if (!user?.id) {
+      toast.error('You must be logged in to save prompts');
+      return;
+    }
+
     setIsSaving(true);
     try {
+      console.log('💾 Saving prompt...', { formData, userId: user.id });
+      
       if (id && currentPrompt) {
-        await updatePrompt(currentPrompt.id, formData);
+        const updated = await updatePrompt(currentPrompt.id, formData);
+        console.log('✅ Prompt updated:', updated);
       } else {
         const newPrompt = await createPrompt(formData, user.id);
+        console.log('✅ Prompt created:', newPrompt);
         if (newPrompt) {
           navigate(`/editor/${newPrompt.id}`);
         }
       }
     } catch (error) {
-      toast.error('Failed to save prompt');
+      console.error('❌ Save failed:', error);
+      toast.error('Failed to save prompt: ' + error.message);
     } finally {
       setIsSaving(false);
     }
@@ -148,6 +157,11 @@ const Editor = () => {
           <p className="text-gray-400">
             {id ? 'Update your existing prompt' : 'Create a new AI prompt with intelligent assistance'}
           </p>
+          {user && (
+            <p className="text-sm text-green-400 mt-1">
+              ✅ Logged in as {user.email}
+            </p>
+          )}
         </div>
         <div className="flex space-x-3">
           <Button

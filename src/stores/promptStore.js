@@ -12,18 +12,28 @@ export const usePromptStore = create((set, get) => ({
   createPrompt: async (promptData, userId) => {
     try {
       set({ loading: true });
-      console.log('🆕 Creating new prompt...');
+      console.log('🆕 Creating new prompt for user:', userId);
+      console.log('📝 Prompt data:', promptData);
+
+      // Ensure we have a valid user ID
+      if (!userId) {
+        throw new Error('User ID is required to create a prompt');
+      }
 
       const newPrompt = {
-        ...promptData,
         user_id: userId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        title: promptData.title || 'Untitled Prompt',
+        description: promptData.description || '',
+        content: promptData.content || '',
+        tags: promptData.tags || [],
+        category: promptData.category || '',
+        is_public: promptData.is_public || false,
         views: 0,
         likes: 0,
-        shares: 0,
-        tags: promptData.tags || []
+        shares: 0
       };
+
+      console.log('📤 Sending to database:', newPrompt);
 
       const { data, error } = await supabase
         .from('prompts_ai_studio')
@@ -32,9 +42,11 @@ export const usePromptStore = create((set, get) => ({
         .single();
 
       if (error) {
-        console.error('Database error:', error);
+        console.error('❌ Database error:', error);
         throw new Error(`Failed to create prompt: ${error.message}`);
       }
+
+      console.log('✅ Prompt created successfully:', data);
 
       set(state => ({
         prompts: [...state.prompts, data],
@@ -46,7 +58,7 @@ export const usePromptStore = create((set, get) => ({
       return data;
     } catch (error) {
       set({ loading: false });
-      console.error('Create prompt error:', error);
+      console.error('❌ Create prompt error:', error);
       toast.error(error.message || 'Failed to create prompt');
       throw error;
     }
@@ -55,7 +67,7 @@ export const usePromptStore = create((set, get) => ({
   updatePrompt: async (promptId, updates) => {
     try {
       set({ loading: true });
-      console.log('✏️ Updating prompt:', promptId);
+      console.log('✏️ Updating prompt:', promptId, updates);
 
       const { data, error } = await supabase
         .from('prompts_ai_studio')
@@ -68,7 +80,7 @@ export const usePromptStore = create((set, get) => ({
         .single();
 
       if (error) {
-        console.error('Database error:', error);
+        console.error('❌ Database error:', error);
         throw new Error(`Failed to update prompt: ${error.message}`);
       }
 
@@ -82,7 +94,7 @@ export const usePromptStore = create((set, get) => ({
       return data;
     } catch (error) {
       set({ loading: false });
-      console.error('Update prompt error:', error);
+      console.error('❌ Update prompt error:', error);
       toast.error(error.message || 'Failed to update prompt');
       throw error;
     }
@@ -98,7 +110,7 @@ export const usePromptStore = create((set, get) => ({
         .eq('id', promptId);
 
       if (error) {
-        console.error('Database error:', error);
+        console.error('❌ Database error:', error);
         throw new Error(`Failed to delete prompt: ${error.message}`);
       }
 
@@ -109,7 +121,7 @@ export const usePromptStore = create((set, get) => ({
 
       toast.success('Prompt deleted successfully!');
     } catch (error) {
-      console.error('Delete prompt error:', error);
+      console.error('❌ Delete prompt error:', error);
       toast.error(error.message || 'Failed to delete prompt');
       throw error;
     }
@@ -120,6 +132,12 @@ export const usePromptStore = create((set, get) => ({
       set({ loading: true });
       console.log('📋 Fetching user prompts for:', userId);
 
+      if (!userId) {
+        console.log('⚠️ No user ID provided, skipping fetch');
+        set({ prompts: [], loading: false });
+        return [];
+      }
+
       const { data, error } = await supabase
         .from('prompts_ai_studio')
         .select('*')
@@ -127,18 +145,17 @@ export const usePromptStore = create((set, get) => ({
         .order('updated_at', { ascending: false });
 
       if (error) {
-        console.error('Database error:', error);
-        // Don't throw error, just log it and return empty array
-        console.log('Failed to fetch user prompts:', error.message);
+        console.error('❌ Database error:', error);
         set({ prompts: [], loading: false });
         return [];
       }
 
+      console.log('✅ Fetched prompts:', data?.length || 0);
       set({ prompts: data || [], loading: false });
       return data || [];
     } catch (error) {
       set({ loading: false });
-      console.error('Fetch user prompts error:', error);
+      console.error('❌ Fetch user prompts error:', error);
       return [];
     }
   },
@@ -155,18 +172,17 @@ export const usePromptStore = create((set, get) => ({
         .order('views', { ascending: false });
 
       if (error) {
-        console.error('Database error:', error);
-        // Don't throw error, just log it and return empty array
-        console.log('Failed to fetch public prompts:', error.message);
+        console.error('❌ Database error:', error);
         set({ prompts: [], loading: false });
         return [];
       }
 
+      console.log('✅ Fetched public prompts:', data?.length || 0);
       set({ prompts: data || [], loading: false });
       return data || [];
     } catch (error) {
       set({ loading: false });
-      console.error('Fetch public prompts error:', error);
+      console.error('❌ Fetch public prompts error:', error);
       return [];
     }
   },
