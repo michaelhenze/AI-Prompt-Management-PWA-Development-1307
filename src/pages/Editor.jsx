@@ -1,0 +1,323 @@
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import TextareaAutosize from 'react-textarea-autosize';
+import * as FiIcons from 'react-icons/fi';
+import SafeIcon from '../common/SafeIcon';
+import { useAuthStore } from '../stores/authStore';
+import { usePromptStore } from '../stores/promptStore';
+import Button from '../components/UI/Button';
+import toast from 'react-hot-toast';
+
+const { FiSave, FiZap, FiEye, FiShare2, FiTag, FiType } = FiIcons;
+
+const Editor = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const { createPrompt, updatePrompt, enhancePrompt, currentPrompt, setCurrentPrompt } = usePromptStore();
+
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    content: '',
+    tags: [],
+    category: '',
+    isPublic: false
+  });
+  const [tagInput, setTagInput] = useState('');
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (id && currentPrompt && currentPrompt.id === id) {
+      setFormData({
+        title: currentPrompt.title || '',
+        description: currentPrompt.description || '',
+        content: currentPrompt.content || '',
+        tags: currentPrompt.tags || [],
+        category: currentPrompt.category || '',
+        isPublic: currentPrompt.isPublic || false
+      });
+    }
+  }, [id, currentPrompt]);
+
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAddTag = () => {
+    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, tagInput.trim()]
+      }));
+      setTagInput('');
+    }
+  };
+
+  const handleRemoveTag = (tagToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+
+  const handleEnhance = async () => {
+    if (!formData.content.trim()) {
+      toast.error('Please enter some content to enhance');
+      return;
+    }
+
+    setIsEnhancing(true);
+    try {
+      const result = await enhancePrompt(formData.content);
+      if (result) {
+        setFormData(prev => ({
+          ...prev,
+          content: result.enhanced
+        }));
+        toast.success('Prompt enhanced successfully!');
+      }
+    } catch (error) {
+      toast.error('Failed to enhance prompt');
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!formData.title.trim() || !formData.content.trim()) {
+      toast.error('Please fill in title and content');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (id && currentPrompt) {
+        await updatePrompt(currentPrompt.firestoreId, formData);
+      } else {
+        const newPrompt = await createPrompt(formData, user.uid);
+        if (newPrompt) {
+          navigate(`/editor/${newPrompt.id}`);
+        }
+      }
+    } catch (error) {
+      toast.error('Failed to save prompt');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between"
+      >
+        <div>
+          <h1 className="text-2xl font-bold">
+            {id ? 'Edit Prompt' : 'Create New Prompt'}
+          </h1>
+          <p className="text-gray-400">
+            {id ? 'Update your existing prompt' : 'Create a new AI prompt with intelligent assistance'}
+          </p>
+        </div>
+        
+        <div className="flex space-x-3">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/dashboard')}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSave}
+            loading={isSaving}
+          >
+            <SafeIcon icon={FiSave} className="mr-2" />
+            Save Prompt
+          </Button>
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Editor */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="lg:col-span-2 space-y-6"
+        >
+          {/* Title */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <label className="flex items-center space-x-2 text-sm font-medium text-gray-300 mb-3">
+              <SafeIcon icon={FiType} />
+              <span>Title</span>
+            </label>
+            <input
+              type="text"
+              value={formData.title}
+              onChange={(e) => handleInputChange('title', e.target.value)}
+              placeholder="Enter a descriptive title for your prompt..."
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
+
+          {/* Description */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <label className="block text-sm font-medium text-gray-300 mb-3">
+              Description
+            </label>
+            <TextareaAutosize
+              value={formData.description}
+              onChange={(e) => handleInputChange('description', e.target.value)}
+              placeholder="Briefly describe what this prompt does..."
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+              minRows={2}
+              maxRows={4}
+            />
+          </div>
+
+          {/* Content */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-gray-300">
+                Prompt Content
+              </label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEnhance}
+                loading={isEnhancing}
+                disabled={!formData.content.trim()}
+              >
+                <SafeIcon icon={FiZap} className="mr-2" />
+                Enhance with AI
+              </Button>
+            </div>
+            <TextareaAutosize
+              value={formData.content}
+              onChange={(e) => handleInputChange('content', e.target.value)}
+              placeholder="Write your prompt here. Use AI enhancement to improve clarity and effectiveness..."
+              className="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+              minRows={8}
+              maxRows={20}
+            />
+          </div>
+        </motion.div>
+
+        {/* Sidebar */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="space-y-6"
+        >
+          {/* Tags */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <label className="flex items-center space-x-2 text-sm font-medium text-gray-300 mb-3">
+              <SafeIcon icon={FiTag} />
+              <span>Tags</span>
+            </label>
+            
+            <div className="flex space-x-2 mb-3">
+              <input
+                type="text"
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                placeholder="Add a tag..."
+                className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+              <Button size="sm" onClick={handleAddTag}>
+                Add
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {formData.tags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-flex items-center px-2 py-1 bg-primary-600/20 text-primary-400 text-xs rounded-full"
+                >
+                  {tag}
+                  <button
+                    onClick={() => handleRemoveTag(tag)}
+                    className="ml-1 hover:text-primary-300"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Settings */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h3 className="text-sm font-medium text-gray-300 mb-4">Settings</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-2">Category</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => handleInputChange('category', e.target.value)}
+                  className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="">Select category</option>
+                  <option value="writing">Writing</option>
+                  <option value="coding">Coding</option>
+                  <option value="marketing">Marketing</option>
+                  <option value="analysis">Analysis</option>
+                  <option value="creative">Creative</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isPublic"
+                  checked={formData.isPublic}
+                  onChange={(e) => handleInputChange('isPublic', e.target.checked)}
+                  className="w-4 h-4 text-primary-600 bg-slate-700 border-slate-600 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="isPublic" className="ml-2 text-sm text-gray-300">
+                  Make public
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Preview */}
+          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
+            <h3 className="flex items-center space-x-2 text-sm font-medium text-gray-300 mb-4">
+              <SafeIcon icon={FiEye} />
+              <span>Preview</span>
+            </h3>
+            
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-gray-400">Title:</span>
+                <p className="text-white">{formData.title || 'Untitled'}</p>
+              </div>
+              <div>
+                <span className="text-gray-400">Description:</span>
+                <p className="text-white">{formData.description || 'No description'}</p>
+              </div>
+              <div>
+                <span className="text-gray-400">Content preview:</span>
+                <p className="text-white line-clamp-3">
+                  {formData.content || 'No content yet...'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
+
+export default Editor;
